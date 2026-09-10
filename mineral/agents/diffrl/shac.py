@@ -71,7 +71,11 @@ class SHAC(Agent):
         self.max_epochs = self.shac_config.get('max_epochs', 0)  # set to 0 to disable and track by max_agent_steps instead
         self.num_critic_batches = self.shac_config.get('num_critic_batches', 4)
         self.critic_batch_size = self.num_envs * self.horizon_len // self.num_critic_batches
-        print('Critic batch size:', self.critic_batch_size)
+        #print('Critic batch size:', self.critic_batch_size)
+
+        # --- Leo MT Parameters -- 
+        # whether we want to ignore the rewards completely in the loss function and only learn the terminal value function. Only useful for debugging.
+        self.ignore_rewards = self.shac_config.get('ignore_rewards', False)
 
         # --- Normalizers ---
         if self.tanh_clamp:  # legacy
@@ -713,12 +717,23 @@ class SHAC(Agent):
                 rew_acc[i + 1, :] = rew_acc[i, :] + gamma * (rew + alpha * entropy)
             else:
                 rew_acc[i + 1, :] = rew_acc[i, :] + gamma * rew
+
+
+            
             if i < self.horizon_len - 1:
-                rets = rew_acc[i + 1, done_env_ids] + self.gamma * gamma[done_env_ids] * next_vs[i + 1, done_env_ids]
+                print("We shouldn't be here. For a single environment, this coude should not run.")
+                if self.ignore_rewards:
+                    rets = self.gamma * gamma[done_env_ids] * next_vs[i + 1, done_env_ids]
+                else:
+                    rets = rew_acc[i + 1, done_env_ids] + self.gamma * gamma[done_env_ids] * next_vs[i + 1, done_env_ids]
+
                 returns[done_env_ids] += rets
             else:
                 # terminate all envs at the end of optimization iteration
-                rets = rew_acc[i + 1, :] + self.gamma * gamma * next_vs[i + 1, :]
+                if self.ignore_rewards:
+                    rets = self.gamma * gamma * next_vs[i + 1, :]
+                else:
+                    rets = rew_acc[i + 1, :] + self.gamma * gamma * next_vs[i + 1, :]
                 returns += rets
 
             if self.with_logprobs:
