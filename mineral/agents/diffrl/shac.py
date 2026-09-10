@@ -74,8 +74,8 @@ class SHAC(Agent):
         #print('Critic batch size:', self.critic_batch_size)
 
         # --- Leo MT Parameters -- 
-        # whether we want to ignore the rewards completely in the loss function and only learn the terminal value function. Only useful for debugging.
-        self.ignore_rewards = self.shac_config.get('ignore_rewards', False)
+        # whether we want to ignore the terminal value completely in the actor loss function and only learn the terminal value function. Only useful for debugging.
+        self.no_terminal_value = self.shac_config.get('no_terminal_value', False)
 
         # --- Normalizers ---
         if self.tanh_clamp:  # legacy
@@ -723,16 +723,16 @@ class SHAC(Agent):
             if i < self.horizon_len - 1:
                 if len(done_env_ids) > 0:
                     print(f"We shouldn't be here. For a single environment, this coude should not run. {done_env_ids}")
-                if self.ignore_rewards:
-                    rets = self.gamma * gamma[done_env_ids] * next_vs[i + 1, done_env_ids]
+                if self.no_terminal_value:
+                    rets = rew_acc[i + 1, done_env_ids]
                 else:
                     rets = rew_acc[i + 1, done_env_ids] + self.gamma * gamma[done_env_ids] * next_vs[i + 1, done_env_ids]
 
                 returns[done_env_ids] += rets
             else:
                 # terminate all envs at the end of optimization iteration
-                if self.ignore_rewards:
-                    rets = self.gamma * gamma * next_vs[i + 1, :]
+                if self.no_terminal_value:
+                    rets = rew_acc[i + 1, :]
                 else:
                     rets = rew_acc[i + 1, :] + self.gamma * gamma * next_vs[i + 1, :]
                 returns += rets
