@@ -721,7 +721,8 @@ class SHAC(Agent):
 
             
             if i < self.horizon_len - 1:
-                print("We shouldn't be here. For a single environment, this coude should not run.")
+                if len(done_env_ids) > 0:
+                    print(f"We shouldn't be here. For a single environment, this coude should not run. {done_env_ids}")
                 if self.ignore_rewards:
                     rets = self.gamma * gamma[done_env_ids] * next_vs[i + 1, done_env_ids]
                 else:
