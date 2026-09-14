@@ -472,7 +472,7 @@ class SHAC(Agent):
             self.timer.start("train/actor_closure/actor_loss")
 
             self.timer.start("train/actor_closure/forward_sim")
-            returns, logprobs, distr_ents = self.compute_actor_loss()
+            returns, logprobs, distr_ents, actor_loss_reward_acc, actor_loss_terminal_value = self.compute_actor_loss()
             self.timer.end("train/actor_closure/forward_sim")
 
             # these returns are value bootstrapped so not actually raw
@@ -531,6 +531,8 @@ class SHAC(Agent):
             results["returns"].append(raw_returns.detach())
             results["grad_norm_before_clip/actor"].append(grad_norm_before_clip)
             results["grad_norm_after_clip/actor"].append(grad_norm_after_clip)
+            results["actor_loss_reward_acc"].append(actor_loss_reward_acc)
+            results["actor_loss_terminal_value"].append(actor_loss_terminal_value)
             self.timer.end("train/actor_closure/actor_loss")
             return actor_loss
 
@@ -660,9 +662,15 @@ class SHAC(Agent):
             pred_val, avg_pred_val = self.critic_target(z_target, return_type="min_and_avg")
             pred_val, avg_pred_val = pred_val.squeeze(-1), avg_pred_val.squeeze(-1)
             next_values[i + 1] = pred_val
+            print(f"terminal_value_critic estimation V = {pred_val.item()}")
             avg_next_values[i + 1] = avg_pred_val
 
             done_env_ids = done.nonzero(as_tuple=False).squeeze(-1)
+
+            # only correct when running with num_envs = 1
+            actor_loss_reward_acc = 0
+            actor_loss_terminal_value = 0
+
             if len(done_env_ids) > 0:
                 terminal_obs = extra_info['obs_before_reset']
                 terminal_obs = self._convert_obs(terminal_obs)
@@ -693,6 +701,7 @@ class SHAC(Agent):
                         real_next_values, avg_real_next_values = self.critic_target(real_z_target, return_type="min_and_avg")
                         real_next_values, avg_real_next_values = real_next_values.squeeze(-1), avg_real_next_values.squeeze(-1)
                         next_values[i + 1, id] = real_next_values
+                        print(f"terminal_value_critic estimation (end of episode) V = {real_next_values.item()}")
                         avg_next_values[i + 1, id] = avg_real_next_values
 
             if (next_values[i + 1] > 1e6).sum() > 0 or (next_values[i + 1] < -1e6).sum() > 0:
@@ -718,7 +727,6 @@ class SHAC(Agent):
             else:
                 rew_acc[i + 1, :] = rew_acc[i, :] + gamma * rew
 
-
             
             if i < self.horizon_len - 1:
                 if len(done_env_ids) > 0:
@@ -731,10 +739,14 @@ class SHAC(Agent):
                 returns[done_env_ids] += rets
             else:
                 # terminate all envs at the end of optimization iteration
+                reward_acc = rew_acc[i + 1, :]
+                actor_loss_reward_acc = reward_acc.item()
                 if self.no_terminal_value:
-                    rets = rew_acc[i + 1, :]
+                    rets = reward_acc
                 else:
-                    rets = rew_acc[i + 1, :] + self.gamma * gamma * next_vs[i + 1, :]
+                    terminal_value = self.gamma * gamma * next_vs[i + 1, :]
+                    actor_loss_terminal_value = terminal_value.item()
+                    rets = reward_acc + terminal_value
                 returns += rets
 
             if self.with_logprobs:
@@ -784,7 +796,7 @@ class SHAC(Agent):
                         self.episode_gamma[done_env_id] = 1.0
 
         self.agent_steps += self.horizon_len * self.num_envs
-        return returns, logprobs, distr_ents
+        return returns, logprobs, distr_ents, actor_loss_reward_acc, actor_loss_terminal_value
 
     def update_critic(self, dataset):
         results = collections.defaultdict(list)
