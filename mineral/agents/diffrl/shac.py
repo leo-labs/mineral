@@ -531,8 +531,8 @@ class SHAC(Agent):
             results["returns"].append(raw_returns.detach())
             results["grad_norm_before_clip/actor"].append(grad_norm_before_clip)
             results["grad_norm_after_clip/actor"].append(grad_norm_after_clip)
-            results["actor_loss_reward_acc"].append(actor_loss_reward_acc)
-            results["actor_loss_terminal_value"].append(actor_loss_terminal_value)
+            results["actor_loss_reward_acc"].append(actor_loss_reward_acc.detach())
+            results["actor_loss_terminal_value"].append(actor_loss_terminal_value.detach())
             self.timer.end("train/actor_closure/actor_loss")
             return actor_loss
 
@@ -668,8 +668,8 @@ class SHAC(Agent):
             done_env_ids = done.nonzero(as_tuple=False).squeeze(-1)
 
             # only correct when running with num_envs = 1
-            actor_loss_reward_acc = 0
-            actor_loss_terminal_value = 0
+            actor_loss_reward_acc = torch.zeros(self.num_envs, dtype=torch.float32, device=self.device)
+            actor_loss_terminal_value = torch.zeros(self.num_envs, dtype=torch.float32, device=self.device)
 
             if len(done_env_ids) > 0:
                 terminal_obs = extra_info['obs_before_reset']
@@ -740,12 +740,12 @@ class SHAC(Agent):
             else:
                 # terminate all envs at the end of optimization iteration
                 reward_acc = rew_acc[i + 1, :]
-                actor_loss_reward_acc = reward_acc.item()
+                actor_loss_reward_acc += reward_acc
                 if self.no_terminal_value:
                     rets = reward_acc
                 else:
                     terminal_value = self.gamma * gamma * next_vs[i + 1, :]
-                    actor_loss_terminal_value = terminal_value.item()
+                    actor_loss_terminal_value += terminal_value
                     rets = reward_acc + terminal_value
                 returns += rets
 
