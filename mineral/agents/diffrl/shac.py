@@ -472,7 +472,7 @@ class SHAC(Agent):
             self.timer.start("train/actor_closure/actor_loss")
 
             self.timer.start("train/actor_closure/forward_sim")
-            returns, logprobs, distr_ents, actor_loss_reward_acc, actor_loss_terminal_value = self.compute_actor_loss()
+            returns, logprobs, distr_ents, actor_loss_results = self.compute_actor_loss()
             self.timer.end("train/actor_closure/forward_sim")
 
             # these returns are value bootstrapped so not actually raw
@@ -531,8 +531,11 @@ class SHAC(Agent):
             results["returns"].append(raw_returns.detach())
             results["grad_norm_before_clip/actor"].append(grad_norm_before_clip)
             results["grad_norm_after_clip/actor"].append(grad_norm_after_clip)
-            results["actor_loss_reward_acc"].append(actor_loss_reward_acc.detach())
-            results["actor_loss_terminal_value"].append(actor_loss_terminal_value.detach())
+            results.update(actor_loss_results)
+
+            
+            #results["grad.actor_loss_reward_acc"].append(actor_loss_reward_acc.grad.detach())
+            #results["grad.actor_loss_terminal_value"].append(actor_loss_terminal_value.grad.detach())
             self.timer.end("train/actor_closure/actor_loss")
             return actor_loss
 
@@ -585,6 +588,7 @@ class SHAC(Agent):
         return results
 
     def compute_actor_loss(self):
+        results = collections.defaultdict(list)
         rew_acc = torch.zeros((self.horizon_len + 1, self.num_envs), dtype=torch.float32, device=self.device)
         gamma = torch.ones(self.num_envs, dtype=torch.float32, device=self.device)
         next_values = torch.zeros((self.horizon_len + 1, self.num_envs), dtype=torch.float32, device=self.device)
@@ -740,12 +744,16 @@ class SHAC(Agent):
             else:
                 # terminate all envs at the end of optimization iteration
                 reward_acc = rew_acc[i + 1, :]
-                actor_loss_reward_acc += reward_acc
+
+                terminal_value = self.gamma * gamma * next_vs[i + 1, :]
+
+                results["actor_loss_reward_acc"].append(reward_acc)
+                results["actor_loss_terminal_value"].append(terminal_value)
+                results.update(self.compute_actor_gradient_stats(reward_acc, terminal_value))
+
                 if self.no_terminal_value:
                     rets = reward_acc
                 else:
-                    terminal_value = self.gamma * gamma * next_vs[i + 1, :]
-                    actor_loss_terminal_value += terminal_value
                     rets = reward_acc + terminal_value
                 returns += rets
 
@@ -796,7 +804,59 @@ class SHAC(Agent):
                         self.episode_gamma[done_env_id] = 1.0
 
         self.agent_steps += self.horizon_len * self.num_envs
-        return returns, logprobs, distr_ents, actor_loss_reward_acc, actor_loss_terminal_value
+        return returns, logprobs, distr_ents, results
+
+
+    def flatten_grads(self, grads, params):
+        return torch.cat([
+            g.reshape(-1) if g is not None
+            else torch.zeros_like(p).reshape(-1)
+            for g, p in zip(grads, params)
+        ])
+
+
+    def compute_actor_gradient_stats(self, reward_loss, terminal_value_loss):
+        params = [p for p in self.actor.parameters() if p.requires_grad]
+
+        reward_grads = torch.autograd.grad(
+            reward_loss,
+            params,
+            retain_graph=True,
+            allow_unused=True,
+        )
+
+        terminal_grads = torch.autograd.grad(
+            terminal_value_loss,
+            params,
+            retain_graph=True,
+            allow_unused=True,
+        )
+
+        g_reward = self.flatten_grads(reward_grads, params)
+        g_terminal = self.flatten_grads(terminal_grads, params)
+
+        g_total = g_reward + g_terminal
+
+        reward_norm = g_reward.norm()
+        terminal_norm = g_terminal.norm()
+        total_norm = g_total.norm()
+
+        cosine = F.cosine_similarity(
+            g_reward,
+            g_terminal,
+            dim=0,
+            eps=1e-8,
+        )
+
+        ratio = terminal_norm / (reward_norm + 1e-8)
+
+        return {
+            "reward_grad_norm": reward_norm,
+            "terminal_grad_norm": terminal_norm,
+            "total_grad_norm": total_norm,
+            "reward_terminal_cosine": cosine,
+            "terminal_reward_ratio": ratio,
+        }
 
     def update_critic(self, dataset):
         results = collections.defaultdict(list)
