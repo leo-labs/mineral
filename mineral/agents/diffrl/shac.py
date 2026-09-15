@@ -388,8 +388,6 @@ class SHAC(Agent):
 
             # train metrics
             results = {**actor_results, **critic_results}
-            for k, v in results.items():
-                print(f"{k}: {v.shape}")
             metrics = {k: torch.mean(torch.stack(v)).item() for k, v in results.items()}
             metrics.update({k: torch.mean(torch.cat(results[k]), 0).cpu().numpy() for k in ['mu', 'sigma']})  # distr
             metrics.update(values_results)
@@ -853,11 +851,11 @@ class SHAC(Agent):
         ratio = terminal_norm / (reward_norm + 1e-8)
 
         return {
-            "reward_grad_norm": reward_norm.detach().reshape(1, 1),
-            "terminal_grad_norm": terminal_norm.detach().reshape(1, 1),
-            "total_grad_norm": total_norm.detach().reshape(1, 1),
-            "reward_terminal_cosine": cosine.detach().reshape(1, 1),
-            "terminal_reward_ratio": ratio.detach().reshape(1, 1),
+            "reward_grad_norm": [reward_norm],
+            "terminal_grad_norm": [terminal_norm],
+            "total_grad_norm": [total_norm],
+            "reward_terminal_cosine": [cosine],
+            "terminal_reward_ratio": [ratio],
         }
 
     def update_critic(self, dataset):
