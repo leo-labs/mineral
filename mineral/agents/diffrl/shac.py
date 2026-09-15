@@ -851,11 +851,11 @@ class SHAC(Agent):
         ratio = terminal_norm / (reward_norm + 1e-8)
 
         return {
-            "reward_grad_norm": reward_norm,
-            "terminal_grad_norm": terminal_norm,
-            "total_grad_norm": total_norm,
-            "reward_terminal_cosine": cosine,
-            "terminal_reward_ratio": ratio,
+            "reward_grad_norm": reward_norm.detach().reshape(1, 1),
+            "terminal_grad_norm": terminal_norm.detach().reshape(1, 1),
+            "total_grad_norm": total_norm.detach().reshape(1, 1),
+            "reward_terminal_cosine": cosine.detach().reshape(1, 1),
+            "terminal_reward_ratio": ratio.detach().reshape(1, 1),
         }
 
     def update_critic(self, dataset):
