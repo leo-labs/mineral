@@ -748,6 +748,7 @@ class SHAC(Agent):
                 terminal_value = self.gamma * gamma * next_vs[i + 1, :]
 
                 results["actor_loss_reward_acc"].append(reward_acc)
+                print(f"reward_acc: {reward_acc[0]}:")
                 results["actor_loss_terminal_value"].append(terminal_value)
                 results.update(self.compute_actor_gradient_stats(reward_acc, terminal_value))
 
