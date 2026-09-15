@@ -388,6 +388,8 @@ class SHAC(Agent):
 
             # train metrics
             results = {**actor_results, **critic_results}
+            for k, v in results.items():
+                print(f"{k}: {v.shape}")
             metrics = {k: torch.mean(torch.stack(v)).item() for k, v in results.items()}
             metrics.update({k: torch.mean(torch.cat(results[k]), 0).cpu().numpy() for k in ['mu', 'sigma']})  # distr
             metrics.update(values_results)
