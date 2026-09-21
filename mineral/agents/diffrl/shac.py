@@ -76,6 +76,7 @@ class SHAC(Agent):
         # --- Leo MT Parameters -- 
         # whether we want to ignore the terminal value completely in the actor loss function and only learn the terminal value function. Only useful for debugging.
         self.no_terminal_value = self.shac_config.get('no_terminal_value', False)
+        self.collect_actor_gradient_stats = self.shac_config.get('collect_actor_gradient_stats', False)
 
         # --- Normalizers ---
         if self.tanh_clamp:  # legacy
@@ -748,9 +749,11 @@ class SHAC(Agent):
                 terminal_value = self.gamma * gamma * next_vs[i + 1, :]
 
                 results["actor_loss_reward_acc"].append(reward_acc.detach())
-                print(f"reward_acc: {reward_acc[0]}:")
+                # print(f"reward_acc: {reward_acc[0]}:")
                 results["actor_loss_terminal_value"].append(terminal_value.detach())
-                results.update(self.compute_actor_gradient_stats(reward_acc, terminal_value))
+
+                if self.collect_actor_gradient_stats:
+                    results.update(self.compute_actor_gradient_stats(reward_acc, terminal_value))
 
                 if self.no_terminal_value:
                     rets = reward_acc
