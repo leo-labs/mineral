@@ -328,7 +328,7 @@ class SHAC(Agent):
                 lr = self.actor_lr
             elif self.shac_config.lr_schedule == 'kl':
                 if self.avg_kl is not None:
-                    actor_lr = adaptive_scheduler(self.last_lr, self.avg_kl.item(), **self.scheduler_kwargs)
+                    actor_lr = adaptive_scheduler(self.last_lr, self.avg_kl, **self.scheduler_kwargs)
                     if self.critic_lrschedule:
                         critic_lr = actor_lr
                         for param_group in self.critic_optim.param_groups:
@@ -568,7 +568,7 @@ class SHAC(Agent):
             kl_dist /= self.num_actions
             avg_kl = kl_dist.mean()
             results["avg_kl"].append(avg_kl)
-            self.avg_kl = avg_kl
+            self.avg_kl = avg_kl.item()
 
         if self.with_autoent:
             entropy = self._entropy
