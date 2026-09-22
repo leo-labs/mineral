@@ -76,6 +76,7 @@ class SHAC(Agent):
         # --- Leo MT Parameters -- 
         # whether we want to ignore the terminal value completely in the actor loss function and only learn the terminal value function. Only useful for debugging.
         self.no_terminal_value = self.shac_config.get('no_terminal_value', False)
+        self.no_reward_acc = self.shac_config.get('no_reward_acc', False)
         self.collect_actor_gradient_stats = self.shac_config.get('collect_actor_gradient_stats', False)
 
         # --- Normalizers ---
@@ -736,12 +737,13 @@ class SHAC(Agent):
             if i < self.horizon_len - 1:
                 if len(done_env_ids) > 0:
                     print(f"We shouldn't be here. For a single environment, this coude should not run. {done_env_ids}")
-                if self.no_terminal_value:
-                    rets = rew_acc[i + 1, done_env_ids]
-                else:
-                    rets = rew_acc[i + 1, done_env_ids] + self.gamma * gamma[done_env_ids] * next_vs[i + 1, done_env_ids]
 
-                returns[done_env_ids] += rets
+                if not self.no_reward_acc:
+                    returns[done_env_ids] += rew_acc[i + 1, done_env_ids]
+
+                if not self.no_terminal_value:
+                    returns[done_env_ids] += self.gamma * gamma[done_env_ids] * next_vs[i + 1, done_env_ids]
+
             else:
                 # terminate all envs at the end of optimization iteration
                 reward_acc = rew_acc[i + 1, :]
@@ -755,11 +757,11 @@ class SHAC(Agent):
                 if self.collect_actor_gradient_stats:
                     results.update(self.compute_actor_gradient_stats(reward_acc, terminal_value))
 
-                if self.no_terminal_value:
-                    rets = reward_acc
-                else:
-                    rets = reward_acc + terminal_value
-                returns += rets
+                if not self.no_reward_acc:
+                    returns += reward_acc
+
+                if not self.no_terminal_value:
+                    returns += terminal_value
 
             if self.with_logprobs:
                 logprobs += logprob
