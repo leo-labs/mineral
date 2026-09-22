@@ -76,7 +76,7 @@ class SHAC(Agent):
         # --- Leo MT Parameters -- 
         # whether we want to ignore the terminal value completely in the actor loss function and only learn the terminal value function. Only useful for debugging.
         self.no_terminal_value = self.shac_config.get('no_terminal_value', False)
-        self.no_reward_acc = self.shac_config.get('no_reward_acc', False)
+        self.no_reward_acc_after_steps = self.shac_config.get('no_reward_acc_after_steps', self.max_agent_steps)
         self.collect_actor_gradient_stats = self.shac_config.get('collect_actor_gradient_stats', False)
 
         # --- Normalizers ---
@@ -673,10 +673,6 @@ class SHAC(Agent):
 
             done_env_ids = done.nonzero(as_tuple=False).squeeze(-1)
 
-            # only correct when running with num_envs = 1
-            actor_loss_reward_acc = torch.zeros(self.num_envs, dtype=torch.float32, device=self.device)
-            actor_loss_terminal_value = torch.zeros(self.num_envs, dtype=torch.float32, device=self.device)
-
             if len(done_env_ids) > 0:
                 terminal_obs = extra_info['obs_before_reset']
                 terminal_obs = self._convert_obs(terminal_obs)
@@ -757,7 +753,7 @@ class SHAC(Agent):
             if self.collect_actor_gradient_stats:
                 results.update(self.compute_actor_gradient_stats(reward_acc, terminal_value))
 
-            if not self.no_reward_acc:
+            if self.agent_steps < self.no_reward_acc_after_steps:
                 returns += reward_acc
 
             if not self.no_terminal_value:
