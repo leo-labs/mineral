@@ -734,34 +734,34 @@ class SHAC(Agent):
                 rew_acc[i + 1, :] = rew_acc[i, :] + gamma * rew
 
             
-            if i < self.horizon_len - 1:
-                if len(done_env_ids) > 0:
-                    print(f"We shouldn't be here. For a single environment, this coude should not run. {done_env_ids}")
+            # if i < self.horizon_len - 1 and :
+            #     if len(done_env_ids) > 0:
+            #         print(f"We shouldn't be here. For a single environment, this coude should not run. {done_env_ids}")
 
-                if not self.no_reward_acc:
-                    returns[done_env_ids] += rew_acc[i + 1, done_env_ids]
+            #     if not self.no_reward_acc:
+            #         returns[done_env_ids] += rew_acc[i + 1, done_env_ids]
 
-                if not self.no_terminal_value:
-                    returns[done_env_ids] += self.gamma * gamma[done_env_ids] * next_vs[i + 1, done_env_ids]
+            #     if not self.no_terminal_value:
+            #         returns[done_env_ids] += self.gamma * gamma[done_env_ids] * next_vs[i + 1, done_env_ids]
 
-            else:
-                # terminate all envs at the end of optimization iteration
-                reward_acc = rew_acc[i + 1, :]
+            # else:
+            # terminate all envs at the end of optimization iteration
+            reward_acc = rew_acc[i + 1, :]
 
-                terminal_value = self.gamma * gamma * next_vs[i + 1, :]
+            terminal_value = self.gamma * gamma * next_vs[i + 1, :]
 
-                results["actor_loss_reward_acc"].append(reward_acc.detach())
-                # print(f"reward_acc: {reward_acc[0]}:")
-                results["actor_loss_terminal_value"].append(terminal_value.detach())
+            results["actor_loss_reward_acc"].append(reward_acc.detach())
+            # print(f"reward_acc: {reward_acc[0]}:")
+            results["actor_loss_terminal_value"].append(terminal_value.detach())
 
-                if self.collect_actor_gradient_stats:
-                    results.update(self.compute_actor_gradient_stats(reward_acc, terminal_value))
+            if self.collect_actor_gradient_stats:
+                results.update(self.compute_actor_gradient_stats(reward_acc, terminal_value))
 
-                if not self.no_reward_acc:
-                    returns += reward_acc
+            if not self.no_reward_acc:
+                returns += reward_acc
 
-                if not self.no_terminal_value:
-                    returns += terminal_value
+            if not self.no_terminal_value:
+                returns += terminal_value
 
             if self.with_logprobs:
                 logprobs += logprob
